@@ -76,7 +76,7 @@ button{cursor:pointer}
 /* toolbar */
 .bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--line);position:relative;z-index:30;-webkit-user-select:none;user-select:none}
 .grp{display:flex;align-items:center;gap:4px}
-.grp.title-grp{flex:1 1 200px;min-width:0;gap:8px}
+.grp.title-grp{flex:1 1 200px;min-width:min(330px,100%);gap:8px}
 .sep{width:1px;height:24px;background:var(--line)}
 .icon-btn{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:9px;border:0;background:transparent;color:var(--fg)}
 .icon-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -294,6 +294,11 @@ mjx-container[display="true"]{margin:.4em 0!important}
   .st-bar h2{display:none}
 }
 
+.quick{position:absolute;z-index:20;background:var(--surface-2);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:8px;display:grid;gap:6px;-webkit-user-select:none;user-select:none}
+.q-row{display:flex;gap:6px;align-items:center;justify-content:center}
+.q-row + .q-row{border-top:1px solid var(--line);padding-top:6px}
+.quick .icon-btn{width:46px;height:46px}
+.size-btn.big{width:40px;height:40px}
 @media (max-width: 1000px){
   #library,#panel{position:absolute;top:0;bottom:0;z-index:25;box-shadow:var(--shadow)}
   #library{left:0;width:min(300px,86%)}
@@ -318,6 +323,7 @@ mjx-container[display="true"]{margin:.4em 0!important}
     </div>
     <div class="grp" role="toolbar" aria-label="Tools">
       <button class="icon-btn" data-tool="p" aria-label="Pen (P)" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 20l1-4.5L15.5 5a2.1 2.1 0 013 3L8 18.5z"/><path d="M13.5 7l3 3"/></svg></button>
+      <button class="icon-btn" data-tool="s" aria-label="Pencil for shading (N)" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4.5 19.5l1.8-5.6L15.6 4.6a1.9 1.9 0 012.7 0l1.1 1.1a1.9 1.9 0 010 2.7l-9.3 9.3z"/><path d="M6.3 13.9l3.8 3.8"/><path d="M4.5 19.5l.9-2.8 1.9 1.9z" fill="currentColor"/></svg></button>
       <button class="icon-btn" data-tool="h" aria-label="Highlighter (H)" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M9 14.5L15.5 4l4.5 3-7 10.5z"/><path d="M9 14.5l-1.5 3 1 1.5h3l1.5-2"/><path d="M4 21h8"/></svg></button>
       <button class="icon-btn" data-tool="l" aria-label="Straight line (L)" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M5 19L19 5"/><circle cx="5" cy="19" r="1.4"/><circle cx="19" cy="5" r="1.4"/></svg></button>
       <button class="icon-btn" data-tool="e" aria-label="Eraser (E)" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M9 20h11"/><path d="M4.6 15.4l9.9-9.9a2 2 0 012.8 0l2.2 2.2a2 2 0 010 2.8L11 19H8.2z"/><path d="M9 11l5 5"/></svg></button>
@@ -372,11 +378,13 @@ mjx-container[display="true"]{margin:.4em 0!important}
           <button class="icon-btn" id="imgDelete" aria-label="Delete image"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></svg></button>
         </div>
       </div>
+      <div id="quick" class="quick" hidden role="dialog" aria-label="Pencil tools"></div>
       <div id="hint" hidden>
         <h2>Start with the first line of working.</h2>
         <p>Write with Apple Pencil. Two fingers scroll and pinch to zoom.</p>
         <p>Tap <b>Check</b> and Claude marks the step where the working breaks.</p>
         <p>The graph button plots functions in 2D and 3D.</p>
+        <p>Hold the Pencil still for tools. Double tap with a finger for the eraser.</p>
       </div>
       <div class="zoom-chip" aria-label="Zoom">
         <button id="zoomOut" aria-label="Zoom out">−</button><span id="zoomVal">100%</span><button id="zoomIn" aria-label="Zoom in">+</button>
@@ -533,7 +541,7 @@ function ago(ts) {
 
 /* ---------- constants ---------- */
 const W = 1000;                      // page width in world units
-const SIZES = { p: [1.4, 2.4, 3.8], h: [12, 20, 30], l: [1.4, 2.4, 3.8] };
+const SIZES = { p: [1.4, 2.4, 3.8], s: [2.2, 3.4, 5], h: [12, 20, 30], l: [1.4, 2.4, 3.8] };
 const LIGHT = { ink: ['#1a2230', '#2456c4', '#c0342a', '#1b7a4c', '#8b46c0'], hl: ['#ffd84a', '#7ce0b2', '#ff9fcd'], paper: '#ffffff', grid: '#e3e9f1', major: '#cbd6e4', marginLine: '#eab3ab', dark: false,
   graph: ['#c0342a', '#2456c4', '#1b7a4c', '#8b46c0', '#b8650a', '#1a2230'], text: '#141c28' };
 
@@ -656,7 +664,7 @@ function bbox(s) {
   if (s.t === 'i' || s.t === 'g') { s._bb = [s.x, s.y, s.x + s.w, s.y + s.h]; return s._bb; }
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (let i = 0; i < s.p.length; i += 3) { const x = s.p[i], y = s.p[i + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-  const m = s.w * (s.t === 'p' ? 1.1 : 0.6) + 1;
+  const m = s.w * (s.t === 's' ? 2.9 : s.t === 'p' ? 1.1 : 0.6) + 1;
   s._bb = [x0 - m, y0 - m, x1 + m, y1 + m]; return s._bb;
 }
 function geom(s) {
@@ -670,7 +678,7 @@ function geom(s) {
       const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1);
       xs.push((P[a * 3] + 2 * P[i * 3] + P[b * 3]) / 4); ys.push((P[a * 3 + 1] + 2 * P[i * 3 + 1] + P[b * 3 + 1]) / 4);
       const pr = clamp(P[i * 3 + 2], 0.05, 1);
-      rs.push(s.t === 'p' ? s.w / 2 * (0.4 + 1.2 * pr) : s.w / 2 * 0.95);
+      rs.push(s.t === 'p' ? s.w / 2 * (0.4 + 1.2 * pr) : s.t === 's' ? s.w / 2 * Math.max(0.3, pr * 5.6) : s.w / 2 * 0.95);
     }
     xs[0] = P[0]; ys[0] = P[1]; xs[n - 1] = P[(n - 1) * 3]; ys[n - 1] = P[(n - 1) * 3 + 1];
     const R = rs.map((r, i) => (rs[Math.max(0, i - 1)] + 2 * r + rs[Math.min(n - 1, i + 1)]) / 4);
@@ -743,6 +751,7 @@ function drawItems(ctx, pal, vis, scaleHint) {
   for (const s of cur.items) {
     if (s.t === 'i' || s.t === 'g' || s.t === 'h' || !inView(s)) continue;
     if (s.t === 'l') { ctx.strokeStyle = pal.ink[s.c] || pal.ink[0]; ctx.lineWidth = s.w; ctx.stroke(pathOf(s)); }
+    else if (s.t === 's') { ctx.save(); ctx.globalAlpha = 0.85; ctx.fillStyle = graphite(ctx, pal.ink[s.c] || pal.ink[0]); ctx.fill(pathOf(s)); ctx.restore(); }
     else { ctx.fillStyle = pal.ink[s.c] || pal.ink[0]; ctx.fill(pathOf(s)); }
   }
 }
@@ -752,6 +761,7 @@ function drawLive(ctx, s, pal) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (s.t === 'h') { ctx.save(); ctx.globalAlpha = pal.dark ? 0.55 : 0.6; if (!pal.dark) ctx.globalCompositeOperation = 'multiply'; ctx.strokeStyle = pal.hl[s.c]; ctx.lineWidth = s.w; ctx.stroke(p); ctx.restore(); }
   else if (s.t === 'l') { ctx.strokeStyle = pal.ink[s.c]; ctx.lineWidth = s.w; ctx.stroke(p); }
+  else if (s.t === 's') { ctx.save(); ctx.globalAlpha = 0.85; ctx.fillStyle = graphite(ctx, pal.ink[s.c]); ctx.fill(p); ctx.restore(); }
   else { ctx.fillStyle = pal.ink[s.c]; ctx.fill(p); }
 }
 function drawPaper(ctx, pal, kind, x0, y0, x1, y1, z) {
@@ -831,6 +841,7 @@ function renderFrame() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(base, 0, 0);
   if (curStroke) { setWorld(ctx); drawLive(ctx, curStroke, theme); }
+  drawHover(ctx);
   if (eraserPos) {
     setWorld(ctx); ctx.beginPath(); ctx.arc(eraserPos.x, eraserPos.y, eraseR(), 0, Math.PI * 2);
     ctx.lineWidth = 1.5 / view.z; ctx.strokeStyle = theme.dark ? 'rgba(255,255,255,.6)' : 'rgba(20,28,40,.5)'; ctx.stroke();
@@ -863,8 +874,8 @@ function redo() { const a = redoStack.pop(); if (!a) return; applyAction(a, 1); 
 
 /* ---------- tools ---------- */
 let tool = 'p';
-const colorOf = { p: 0, h: 0, l: 0 };
-const sizeOf = { p: 1, h: 1, l: 1 };
+const colorOf = { p: 0, s: 0, h: 0, l: 0 };
+const sizeOf = { p: 1, s: 1, h: 1, l: 1 };
 let fingerDraw = lsGet('lemma:finger') === '1';
 function setTool(t) {
   tool = t;
@@ -896,19 +907,174 @@ const ptrs = new Map();
 let lastTapObj = null, lastTapAt = 0;
 let mode = null, drawId = null, curStroke = null, gesture = null, eraseHits = null, eraserPos = null, drag = null, downRect = null, penSeen = false;
 function pos(e) { const r = downRect || cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
-function pressure(e, src) { return src === 'pen' ? (e.pressure > 0 ? e.pressure : 0.5) : 0.5; }
+function pressure(e, src) { if (src !== 'pen') return 0.5; const pr = e.pressure > 0 ? e.pressure : 0.5; return Math.pow(clamp(pr, 0, 1), CURVE[prefs.curve] || 1); }
 const eraseR = () => 11 / view.z;
+
+/* ---------- Apple Pencil extras ---------- */
+const prefs = Object.assign({ curve: 'normal', dblTap: 'eraser', fingerTaps: true, hold: true },
+  (() => { try { return JSON.parse(lsGet('lemma:pencil') || '{}'); } catch (e) { return {}; } })());
+function savePrefs() { lsSet('lemma:pencil', JSON.stringify(prefs)); }
+const CURVE = { light: 0.6, normal: 1, firm: 1.6 };
+const TOOL_NAME = { p: 'Pen', s: 'Pencil', h: 'Highlighter', l: 'Line', e: 'Eraser', m: 'Move' };
+function tiltOf(e) {
+  if (typeof e.altitudeAngle === 'number' && e.altitudeAngle > 0 && e.altitudeAngle < Math.PI / 2 - 1e-3) return e.altitudeAngle;
+  const tx = (e.tiltX || 0) * Math.PI / 180, ty = (e.tiltY || 0) * Math.PI / 180;
+  if (!tx && !ty) return Math.PI / 2;
+  return Math.atan(1 / Math.hypot(Math.tan(tx), Math.tan(ty)));
+}
+function shadeK(e, src) {
+  const pr = pressure(e, src);
+  const t = src === 'pen' ? clamp((0.85 - tiltOf(e)) / 0.6, 0, 1) : 0;
+  return clamp((0.5 + 0.9 * pr) * (1 + 3 * t) / 5.6, 0.02, 1);
+}
+const grainMaps = new WeakMap();
+function graphite(c, color) {
+  let m = grainMaps.get(c); if (!m) { m = new Map(); grainMaps.set(c, m); }
+  let p = m.get(color); if (p) return p;
+  const N = 96, t = document.createElement('canvas'); t.width = t.height = N;
+  const x = t.getContext('2d'), img = x.createImageData(N, N), [r, g, b] = gHex(color);
+  let seed = 1234567;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  for (let i = 0; i < N * N; i++) {
+    const v = rnd(), a = v < 0.14 ? 0.12 : 0.5 + 0.5 * rnd();
+    img.data[i * 4] = r; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = b; img.data[i * 4 + 3] = Math.round(a * 255);
+  }
+  x.putImageData(img, 0, 0);
+  p = c.createPattern(t, 'repeat');
+  try { p.setTransform(new DOMMatrix().scale(0.5)); } catch (e) {}
+  m.set(color, p); return p;
+}
+
+/* hover preview (Pencil hover on supported iPads) */
+let hoverPos = null, hoverT = null;
+function setHover(w) { hoverPos = w; clearTimeout(hoverT); if (w) hoverT = setTimeout(() => { hoverPos = null; requestFrame(); }, 1500); requestFrame(); }
+function drawHover(c) {
+  if (!hoverPos || curStroke || !['p', 's', 'h', 'l'].includes(tool)) return;
+  const key = tool, col = key === 'h' ? theme.hl[colorOf.h] : theme.ink[colorOf[key]];
+  const r = key === 'h' ? SIZES.h[sizeOf.h] / 2 : SIZES[key][sizeOf[key]] / 2 * (key === 's' ? 0.95 : 0.9);
+  setWorld(c); c.beginPath(); c.arc(hoverPos.x, hoverPos.y, Math.max(r, 2 / view.z), 0, Math.PI * 2);
+  c.globalAlpha = 0.4; c.fillStyle = col; c.fill(); c.globalAlpha = 1;
+  c.lineWidth = 1 / view.z; c.strokeStyle = col; c.stroke();
+}
+
+/* finger taps: double tap switches pen and eraser, two fingers undo, three redo */
+let tapS = null, lastFingerTap = null, lastPenAt = 0, prevTool = 'p';
+function tapDown(e, p) {
+  const now = performance.now(), n = [...ptrs.values()].filter(q => q.type === 'touch').length;
+  if (n === 1 || !tapS) tapS = { t0: now, max: 0, moved: false, palm: false, starts: new Map() };
+  tapS.max = Math.max(tapS.max, n);
+  tapS.starts.set(e.pointerId, { x: p.x, y: p.y });
+  if ((e.width || 0) > 44 || (e.height || 0) > 44 || now - lastPenAt < 450 || [...ptrs.values()].some(q => q.type === 'pen')) tapS.palm = true;
+}
+function tapMove(e, p) { if (!tapS) return; const s0 = tapS.starts.get(e.pointerId); if (s0 && Math.hypot(p.x - s0.x, p.y - s0.y) > 10) tapS.moved = true; }
+function tapUp(e) {
+  if (!tapS || e.pointerType !== 'touch') return;
+  if ([...ptrs.values()].some(q => q.type === 'touch')) return;
+  const s = tapS, now = performance.now(); tapS = null;
+  if (s.moved || s.palm || now - s.t0 > 320 || now - lastPenAt < 450) return;
+  if (s.max === 2 && prefs.fingerTaps) { if (undoStack.length) { undo(); toast('Undo'); } }
+  else if (s.max === 3 && prefs.fingerTaps) { if (redoStack.length) { redo(); toast('Redo'); } }
+  else if (s.max === 1 && !fingerDraw && prefs.dblTap === 'eraser') {
+    const st = s.starts.values().next().value;
+    if (lastFingerTap && now - lastFingerTap.t < 380 && Math.hypot(st.x - lastFingerTap.x, st.y - lastFingerTap.y) < 44) { lastFingerTap = null; quickSwitch(); }
+    else lastFingerTap = { t: now, x: st.x, y: st.y };
+  }
+}
+function quickSwitch() {
+  if (tool === 'e') setTool(prevTool && prevTool !== 'e' ? prevTool : 'p');
+  else { if (tool !== 'm') prevTool = tool; setTool('e'); }
+  toast(TOOL_NAME[tool]);
+}
+
+/* hold the Pencil still to open the tool palette */
+let holdT = null, holdStart = null;
+function armHold(e, p) {
+  clearTimeout(holdT); holdT = null;
+  if (!prefs.hold || e.pointerType !== 'pen') return;
+  holdStart = { x: p.x, y: p.y, id: e.pointerId };
+  holdT = setTimeout(() => {
+    holdT = null;
+    if (drawId !== holdStart.id) return;
+    if (mode === 'draw') curStroke = null;
+    else if (mode === 'erase') { if (eraseHits && eraseHits.length) return; eraseHits = null; }
+    else return;
+    mode = 'held'; eraserPos = null;
+    openQuick(holdStart.x, holdStart.y); requestFrame();
+  }, 480);
+}
+function moveHold(p) { if (holdT && holdStart && Math.hypot(p.x - holdStart.x, p.y - holdStart.y) > 5) { clearTimeout(holdT); holdT = null; } }
+const INK_NAMES = ['Black', 'Blue', 'Red', 'Green', 'Purple'], HL_NAMES = ['Yellow', 'Mint', 'Pink'];
+function openQuick(x, y) {
+  const q = $('#quick'); q.innerHTML = '';
+  const tools = el('div', { class: 'q-row' });
+  for (const t of ['p', 's', 'h', 'l', 'e']) {
+    const src = $(`[data-tool="${t}"]`);
+    const b = el('button', { class: 'icon-btn', 'aria-label': TOOL_NAME[t], 'aria-pressed': String(tool === t), onclick: () => { if (t === 'e' && tool !== 'e' && tool !== 'm') prevTool = tool; setTool(t); openQuick(x, y); } });
+    b.innerHTML = src ? src.innerHTML : TOOL_NAME[t];
+    tools.append(b);
+  }
+  q.append(tools);
+  if (tool !== 'e' && tool !== 'm') {
+    const key = tool, names = key === 'h' ? HL_NAMES : INK_NAMES;
+    const cols = el('div', { class: 'q-row' });
+    names.forEach((nm, i) => {
+      const b = el('button', { class: 'swatch big', 'aria-label': nm, 'aria-pressed': String(colorOf[key] === i), onclick: () => { colorOf[key] = i; renderSwatches(); openQuick(x, y); } });
+      b.style.background = `var(--${key === 'h' ? 'hl' : 'ink'}${i})`; cols.append(b);
+    });
+    const sizes = el('div', { class: 'q-row' });
+    [['Fine', 4], ['Medium', 7], ['Bold', 11]].forEach(([nm, px], i) => {
+      const b = el('button', { class: 'size-btn big', 'aria-label': nm, 'aria-pressed': String(sizeOf[key] === i), onclick: () => { sizeOf[key] = i; renderSwatches(); openQuick(x, y); } });
+      const dot = el('i'); dot.style.width = dot.style.height = (key === 'h' ? px + 5 : px) + 'px'; b.append(dot); sizes.append(b);
+    });
+    q.append(cols, sizes);
+  }
+  const ub = el('button', { class: 'btn small', text: 'Undo', onclick: () => undo() }), rb = el('button', { class: 'btn small', text: 'Redo', onclick: () => redo() });
+  ub.disabled = !undoStack.length; rb.disabled = !redoStack.length;
+  q.append(el('div', { class: 'q-row' }, ub, rb));
+  q.hidden = false;
+  const qw = q.offsetWidth, qh = q.offsetHeight;
+  q.style.left = clamp(x - qw / 2, 8, Math.max(8, SW - qw - 8)) + 'px';
+  q.style.top = (y - qh - 28 > 8 ? y - qh - 28 : clamp(y + 28, 8, Math.max(8, SH - qh - 8))) + 'px';
+}
+function closeQuick() { $('#quick').hidden = true; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeQuick(); });
+
+function pencilSettings() {
+  const mk = (id, label, value, opts) => {
+    const s = el('select', { id }); for (const [v, t] of opts) s.append(el('option', { value: v, text: t })); s.value = value;
+    return [el('label', { class: 'lib-label', for: id, text: label }), s];
+  };
+  const [l1, curve] = mk('pfCurve', 'Pressure', prefs.curve, [['light', 'Light touch (more sensitive)'], ['normal', 'Normal'], ['firm', 'Firm (needs a harder press)']]);
+  const [l2, dbl] = mk('pfDbl', 'Double tap the page with a finger', prefs.dblTap, [['eraser', 'Switch between pen and eraser'], ['off', 'Do nothing']]);
+  const [l3, taps] = mk('pfTaps', 'Two-finger tap / three-finger tap', prefs.fingerTaps ? 'on' : 'off', [['on', 'Undo / Redo'], ['off', 'Do nothing']]);
+  const [l4, hold] = mk('pfHold', 'Hold the Pencil still for half a second', prefs.hold ? 'on' : 'off', [['on', 'Open the tool palette'], ['off', 'Do nothing']]);
+  const [l5, finger] = mk('pfFinger', 'One finger on the page', fingerDraw ? 'draw' : 'scroll', [['scroll', 'Scrolls (Pencil draws)'], ['draw', 'Draws too']]);
+  openSheet('Apple Pencil', [
+    el('p', { text: 'Pressure, tilt and hover come straight from the Pencil. Apple only sends the Pencil’s own double tap and squeeze to App Store apps, so Lemma uses the finger taps and hold gesture below instead.' }),
+    l1, curve, l2, dbl, l3, taps, l4, hold, l5, finger
+  ], [
+    { label: 'Cancel' },
+    { label: 'Save', kind: 'primary', run: () => {
+      prefs.curve = curve.value; prefs.dblTap = dbl.value; prefs.fingerTaps = taps.value === 'on'; prefs.hold = hold.value === 'on'; savePrefs();
+      fingerDraw = finger.value === 'draw'; lsSet('lemma:finger', fingerDraw ? '1' : '0'); $('#btnFinger').setAttribute('aria-pressed', String(fingerDraw));
+      toast('Pencil settings saved');
+    } }
+  ]);
+}
+
 
 cv.addEventListener('pointerdown', e => {
   e.preventDefault();
   if ($('#sheet').hidden === false) return;
+  hoverPos = null; if (!$('#quick').hidden) closeQuick();
   document.activeElement && document.activeElement.blur && document.activeElement !== document.body && document.activeElement.blur();
   downRect = cv.getBoundingClientRect();
-  if (e.pointerType === 'pen') penSeen = true;
+  if (e.pointerType === 'pen') { penSeen = true; lastPenAt = performance.now(); if (tapS) tapS.palm = true; }
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
   const p = pos(e);
   ptrs.set(e.pointerId, { x: p.x, y: p.y, type: e.pointerType });
   if (e.pointerType === 'touch') {
+    tapDown(e, p);
     if ((mode === 'draw' || mode === 'erase' || mode === 'drag') && ptrs.get(drawId) && ptrs.get(drawId).type !== 'touch') return; // palm while Pencil writes
     const touches = [...ptrs.entries()].filter(([, q]) => q.type === 'touch');
     if (touches.length >= 2) {
@@ -940,7 +1106,7 @@ function updatePinch() {
 function startTool(e, p, src) {
   const w = toWorld(p);
   drawId = e.pointerId;
-  if (tool === 'e') { mode = 'erase'; eraseHits = []; eraserPos = w; eraseAt(w); requestFrame(); return; }
+  if (tool === 'e') { mode = 'erase'; eraseHits = []; eraserPos = w; eraseAt(w); armHold(e, p); requestFrame(); return; }
   if (tool === 'm') {
     const img = hitImage(w);
     if (img) {
@@ -954,7 +1120,8 @@ function startTool(e, p, src) {
   }
   mode = 'draw';
   const t = tool === 'p' ? (src === 'pen' ? 'p' : 'f') : tool;
-  curStroke = { t, c: colorOf[tool], w: SIZES[tool][sizeOf[tool]], p: [w.x, w.y, pressure(e, src)], src };
+  curStroke = { t, c: colorOf[tool], w: SIZES[tool][sizeOf[tool]], p: [w.x, w.y, t === 's' ? shadeK(e, src) : pressure(e, src)], src };
+  armHold(e, p);
   hideHint();
   requestFrame();
 }
@@ -969,19 +1136,22 @@ function addPoint(w, pr) {
 cv.addEventListener('pointermove', e => {
   const q = ptrs.get(e.pointerId);
   if (!q) {
+    if (e.pointerType === 'pen' && !e.buttons) { downRect = null; const w = toWorld(pos(e)); if (tool === 'e') { eraserPos = w; requestFrame(); } else setHover(w); return; }
     if (tool === 'e' && e.pointerType !== 'touch') { downRect = null; eraserPos = toWorld(pos(e)); requestFrame(); }
     return;
   }
   const p = pos(e);
+  if (q.type === 'touch') tapMove(e, p);
   if (mode === 'pinch' && gesture && gesture.ids.includes(e.pointerId)) { q.x = p.x; q.y = p.y; updatePinch(); return; }
   if (mode === 'pan' && gesture && gesture.id === e.pointerId) {
     view.x -= (p.x - q.x) / view.z; view.y -= (p.y - q.y) / view.z; q.x = p.x; q.y = p.y; clampView(); requestBase(); return;
   }
   q.x = p.x; q.y = p.y;
   if (e.pointerId !== drawId) return;
+  moveHold(p);
   if (mode === 'draw' && curStroke) {
     const evs = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
-    for (const ev of (evs.length ? evs : [e])) addPoint(toWorld(pos(ev)), pressure(ev, curStroke.src));
+    for (const ev of (evs.length ? evs : [e])) addPoint(toWorld(pos(ev)), curStroke.t === 's' ? shadeK(ev, curStroke.src) : pressure(ev, curStroke.src));
     requestFrame();
   } else if (mode === 'erase') { const w = toWorld(p); eraserPos = w; eraseAt(w); requestFrame(); }
   else if (mode === 'drag' && drag) {
@@ -991,6 +1161,9 @@ cv.addEventListener('pointermove', e => {
 function onUp(e) {
   if (!ptrs.has(e.pointerId)) return;
   ptrs.delete(e.pointerId);
+  if (e.pointerType === 'pen') lastPenAt = performance.now();
+  if (e.pointerId === drawId) { clearTimeout(holdT); holdT = null; }
+  tapUp(e);
   if (mode === 'pinch') {
     if (gesture && gesture.ids.includes(e.pointerId)) {
       const rest = [...ptrs.entries()].filter(([, q]) => q.type === 'touch');
@@ -1007,7 +1180,7 @@ function onUp(e) {
 }
 cv.addEventListener('pointerup', onUp);
 cv.addEventListener('pointercancel', onUp);
-cv.addEventListener('pointerleave', e => { if (!ptrs.size && eraserPos) { eraserPos = null; requestFrame(); } });
+cv.addEventListener('pointerleave', e => { if (!ptrs.size && (eraserPos || hoverPos)) { eraserPos = null; hoverPos = null; requestFrame(); } });
 stage.addEventListener('wheel', e => {
   e.preventDefault();
   if (e.ctrlKey || e.metaKey) { const r = cv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.01)); }
@@ -1322,7 +1495,7 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (k === 'g') { openStudio(null); return; }
-  const map = { p: 'p', h: 'h', l: 'l', e: 'e', v: 'm' };
+  const map = { p: 'p', n: 's', h: 'h', l: 'l', e: 'e', v: 'm' };
   if (map[k]) setTool(map[k]);
 });
 
@@ -1412,14 +1585,15 @@ async function initAI() {
       try { const lim = await sample.limits(); if (lim.images) { aiReady = true; maxImgs = lim.images.maxCount || 1; } else msg = 'This view cannot send your handwriting to Claude, so checking is switched off here.'; }
       catch (e) { msg = 'Claude is not available in this view.'; }
     }
-  } else if (lsGet('lemma:key')) { sample = apiSample(); aiReady = true; maxImgs = 5; }
-  else { sample = null; needKey = true; msg = 'To use Check, LaTeX, Practice and Ask in the app, add your Anthropic API key in Settings. Writing, graphing and exporting work without it.'; }
+  } else if (engine() === 'api') { sample = apiSample(); aiReady = true; maxImgs = 5; }
+  else { sample = null; aiReady = true; maxImgs = 5; }
   const off = $('#aiOff');
   off.hidden = aiReady;
   off.replaceChildren(document.createTextNode(msg));
   if (needKey) off.append(el('div', { style: 'margin-top:8px' }, el('button', { class: 'btn small', text: 'Open Settings', onclick: openSettings })));
   ['#runCheck', '#runTex', '#runPractice', '#askSend'].forEach(s => $(s).disabled = !aiReady);
   const fp = $('#stFromPage'); if (fp) fp.disabled = !aiReady;
+  updateAskUI();
 }
 
 function aiError(e) {
@@ -1480,6 +1654,7 @@ let checkCtl = null;
 $('#runCheck').onclick = () => { if (checkCtl) { checkCtl.abort(); return; } runCheck(); };
 $('#btnCheck').onclick = () => { togglePanel(true); showTab('check'); if (!checkCtl) runCheck(); };
 async function runCheck() {
+  if (engine() === 'local') return localCheck();
   const out = $('#checkOut');
   if (!aiReady) { out.replaceChildren(noticeNode($('#aiOff').textContent || 'Claude is not available here.', 'warn')); return; }
   const cap = await captureScreen();
@@ -1563,6 +1738,7 @@ function scrollToStep(i) {
 let texCtl = null;
 $('#runTex').onclick = () => { if (texCtl) { texCtl.abort(); return; } runTex(); };
 async function runTex() {
+  if (engine() === 'local') return localTex();
   const st = $('#texStatus');
   if (!aiReady) return;
   const cap = await capturePage(maxImgs);
@@ -1597,6 +1773,7 @@ function copyText(t, field) {
 let prCtl = null;
 $('#runPractice').onclick = () => { if (prCtl) { prCtl.abort(); return; } runPractice(); };
 async function runPractice() {
+  if (engine() === 'local') return localPractice();
   const out = $('#practiceOut');
   if (!aiReady) return;
   const cap = await capturePage(Math.min(3, maxImgs));
@@ -1631,6 +1808,7 @@ $('#askForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (askCtl) { askCtl.abort(); return; }
   const q = $('#askBox').value.trim(); if (!q || !aiReady) return;
+  if (engine() === 'local') { $('#askBox').value = ''; localAsk(q); return; }
   $('#askBox').value = '';
   const chat = $('#chat');
   chat.append(el('div', { class: 'msg me', text: q }));
@@ -1698,7 +1876,7 @@ async function exportSVG() {
   for (const s of cur.items) if (s.t === 'h') { rec.d = ''; traceGeom(rec, geom(s)); parts.push(`<path d="${rec.d}" fill="none" stroke="${LIGHT.hl[s.c]}" stroke-opacity="0.6" stroke-width="${s.w}" stroke-linecap="round" stroke-linejoin="round"/>`); }
   for (const s of cur.items) {
     if (s.t === 'i' || s.t === 'g' || s.t === 'h') continue; rec.d = ''; traceGeom(rec, geom(s));
-    parts.push(s.t === 'l' ? `<path d="${rec.d}" fill="none" stroke="${LIGHT.ink[s.c]}" stroke-width="${s.w}" stroke-linecap="round"/>` : `<path d="${rec.d}" fill="${LIGHT.ink[s.c]}"/>`);
+    parts.push(s.t === 'l' ? `<path d="${rec.d}" fill="none" stroke="${LIGHT.ink[s.c]}" stroke-width="${s.w}" stroke-linecap="round"/>` : `<path d="${rec.d}" fill="${LIGHT.ink[s.c]}"${s.t === 's' ? ' fill-opacity="0.7"' : ''}/>`);
   }
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${r.w} ${f(r.h)}" width="${r.w}" height="${f(r.h)}"><rect width="100%" height="100%" fill="#ffffff"/>${parts.join('')}</svg>`;
   saveFile(fileBase() + '.svg', new Blob([svg], { type: 'image/svg+xml' }));
@@ -1818,7 +1996,7 @@ function gWalk(n, fn) {
   }
 }
 function gSymParts(name) {
-  const known = ['theta', 'tau', 'phi', 'pi'], out = []; let i = 0;
+  const known = ['theta', 'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'lambda', 'sigma', 'omega', 'rho', 'mu', 'tau', 'phi', 'psi', 'pi'], out = []; let i = 0;
   while (i < name.length) { const k = known.find(w => name.startsWith(w, i)); if (k) { out.push(k); i += k.length; } else { out.push(name[i]); i++; } }
   return out;
 }
@@ -2887,6 +3065,7 @@ function placeGraph() {
 /* Claude: graph what is written on the page */
 $('#stFromPage').onclick = async () => {
   if (studio.ctl) { studio.ctl.abort(); return; }
+  if (engine() === 'local') return localGraphFromPage();
   if (!aiReady) { toast(IN_CLAUDE ? 'Claude is not available in this view.' : 'Add your API key in Settings first.'); return; }
   const cap = await captureScreen();
   if (!cap) { toast('Write a function or equation on the page first, then try again.'); return; }
@@ -2973,19 +3152,44 @@ function apiSample() {
   return call;
 }
 function openSettings() {
+  const eng = el('select', { id: 'engineIn' },
+    el('option', { value: 'local', text: 'On this iPad (free, works offline)' }),
+    el('option', { value: 'api', text: 'Claude with my API key (paid per use)' }));
+  eng.value = lsGet('lemma:engine') === 'api' ? 'api' : 'local';
   const key = el('input', { type: 'password', id: 'apiKeyIn', value: lsGet('lemma:key') || '', placeholder: 'sk-ant-…', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
   const model = el('select', { id: 'modelIn' },
     el('option', { value: 'sonnet', text: 'Claude Sonnet 5.5 (faster, costs less)' }),
     el('option', { value: 'opus', text: 'Claude Opus 5.5 (most careful)' }));
   model.value = lsGet('lemma:model') || 'sonnet';
-  openSheet('Settings', [
-    el('p', { text: 'In the home screen app, Check, LaTeX, Practice, Ask and "From my working" use Claude through your own Anthropic API key. The key stays on this iPad and is only sent to Anthropic. Usage is billed to your Anthropic account, separately from any Claude subscription.' }),
+  const apiBox = el('div', { style: 'display:grid;gap:10px' },
+    el('p', { text: 'Uses your own Anthropic API key, billed to your Anthropic account separately from any Claude plan. The key stays on this iPad.' }),
     el('label', { class: 'lib-label', for: 'apiKeyIn', text: 'Anthropic API key' }), key,
-    el('label', { class: 'lib-label', for: 'modelIn', text: 'Model' }), model
+    el('label', { class: 'lib-label', for: 'modelIn', text: 'Model' }), model);
+  const readerState = el('p', { text: LOCAL.model ? 'The maths reader is ready on this iPad.' : lsGet('lemma:readerReady') === '1' ? 'The maths reader is downloaded and ready.' : 'The maths reader downloads the first time you use Check (about 80 MB, once). After that everything works offline.' });
+  const dl = el('button', { class: 'btn small', text: 'Download the maths reader now', onclick: async () => {
+    dl.disabled = true;
+    try { await loadReader(f => { readerState.textContent = 'Downloading: ' + Math.round(f * 100) + '%'; }); readerState.textContent = 'The maths reader is ready on this iPad.'; }
+    catch (e) { readerState.textContent = readerError(e); dl.disabled = false; }
+  } });
+  const localBox = el('div', { style: 'display:grid;gap:10px' },
+    el('p', { text: 'Lemma reads your handwriting with a small maths model that runs on the iPad, then checks each line against the one above with its own maths engine. No Claude usage or API credits. Ask hands your question to the Claude app instead.' }),
+    readerState, el('div', { class: 'btn-row' }, dl),
+    el('p', { text: 'Handwriting reader: Texo by Sicheng Mao, open source under the AGPL-3.0 licence.' }));
+  const sync = () => { apiBox.hidden = eng.value !== 'api'; localBox.hidden = eng.value !== 'local'; };
+  eng.addEventListener('change', sync); sync();
+  openSheet('Settings', [
+    el('label', { class: 'lib-label', for: 'engineIn', text: 'Check, LaTeX, Practice and graphing from your working' }), eng,
+    localBox, apiBox
   ], [
-    { label: 'Remove key', run: () => { lsDel('lemma:key'); initAI(); toast('API key removed'); } },
     { label: 'Cancel' },
-    { label: 'Save', kind: 'primary', run: () => { const v = key.value.trim(); if (v) lsSet('lemma:key', v); lsSet('lemma:model', model.value); initAI(); toast(v ? 'Settings saved' : 'Settings saved. Add a key to use Claude.'); } }
+    { label: 'Save', kind: 'primary', run: () => {
+      const v = key.value.trim();
+      if (v) lsSet('lemma:key', v); else lsDel('lemma:key');
+      lsSet('lemma:model', model.value);
+      lsSet('lemma:engine', eng.value === 'api' && v ? 'api' : 'local');
+      initAI();
+      toast(eng.value === 'api' && !v ? 'No key entered, so Lemma uses the iPad.' : 'Settings saved');
+    } }
   ]);
 }
 function showInstall() {
@@ -3061,15 +3265,17 @@ const IC = {
   open: '<path d="M12 20V9M8 13l4-4 4 4"/><path d="M5 4h14"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>',
   home: '<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
-  graph: '<path d="M4 4v16h16"/><path d="M6.5 16.5c3-9 5.5-9 7.5-4s3.5 3 5.5-5"/>'
+  graph: '<path d="M4 4v16h16"/><path d="M6.5 16.5c3-9 5.5-9 7.5-4s3.5 3 5.5-5"/>',
+  pencil: '<path d="M4 20l1-4.5L15.5 5a2.1 2.1 0 013 3L8 18.5z"/><path d="M13.5 7l3 3"/>'
 };
 $('#btnMore').onclick = () => {
   const list = [
     mkOpt(IC.graph, 'New graph', '2D and 3D graphs you can place on the page. Shortcut: G.', () => openStudio(null)),
+    mkOpt(IC.pencil, 'Apple Pencil', 'Pressure, finger taps and the hold-for-tools palette.', pencilSettings),
     mkOpt(IC.save, 'Back up all notebooks', 'Saves every notebook to one file you can keep in Files.', backupAll),
     mkOpt(IC.open, 'Restore from a backup', 'Adds the notebooks from a Lemma backup file.', () => $('#restoreIn').click())
   ];
-  if (!IN_CLAUDE) list.push(mkOpt(IC.gear, 'Settings', 'Your Anthropic API key and model for Claude features.', openSettings));
+  if (!IN_CLAUDE) list.push(mkOpt(IC.gear, 'Settings', 'How Check, LaTeX and Practice work, and the maths reader download.', openSettings));
   if (!IN_CLAUDE && !isStandalone()) list.push(mkOpt(IC.home, 'Add to Home Screen', 'Install Lemma as an app on this iPad.', showInstall));
   if (IN_CLAUDE) list.push(mkOpt(IC.home, 'Move notes to the home screen app', 'How to carry notebooks into the installed Lemma app.', showMoveInfo));
   openSheet('More', [el('div', { class: 'opt-list' }, ...list)], [{ label: 'Close' }]);
@@ -3083,6 +3289,672 @@ function offerFile(name, blob) {
   if (canShare) acts.push({ label: 'Share or save to Files', kind: 'primary', run: () => { navigator.share({ files: [file], title: name }).catch(() => {}); } });
   acts.push({ label: 'Close' });
   openSheet('Your file is ready', [el('p', { text: name }), el('div', { class: 'btn-row' }, link)], acts);
+}
+
+/* ================= On-device maths: read, check, practise (no Claude needed) ================= */
+function engine() { if (IN_CLAUDE) return 'claude'; return (lsGet('lemma:engine') === 'api' && lsGet('lemma:key')) ? 'api' : 'local'; }
+const LOCAL = { T: null, model: null, tok: null, loading: null, prog: null, cache: new Map() };
+function readerSrc() { return { base: window.LEMMA_TF_BASE || './', local: window.LEMMA_MODEL_LOCAL || null }; }
+function loadReader(onProgress) {
+  if (onProgress) LOCAL.prog = onProgress;
+  if (LOCAL.model) return Promise.resolve();
+  if (!LOCAL.loading) LOCAL.loading = (async () => {
+    const src = readerSrc();
+    const T = await import(new URL(src.base + 'transformers.min.js', location.href).href);
+    LOCAL.T = T;
+    const env = T.env;
+    env.backends.onnx.wasm.wasmPaths = new URL(src.base, location.href).href;
+    env.backends.onnx.wasm.numThreads = 1;
+    env.backends.onnx.wasm.proxy = true;
+    const files = {};
+    const progress_callback = d => {
+      if (!d || d.status !== 'progress' || !d.file) return;
+      files[d.file] = [d.loaded || 0, d.total || 0];
+      let a = 0, b = 0; for (const k in files) { a += files[k][0]; b += files[k][1]; }
+      if (LOCAL.prog && b) LOCAL.prog(a / b);
+    };
+    let id = 'alephpi/FormulaNet';
+    if (src.local) { env.allowRemoteModels = false; env.allowLocalModels = true; env.localModelPath = src.local; id = 'texo'; }
+    else env.allowLocalModels = false;
+    const load = async () => {
+      LOCAL.model = await T.VisionEncoderDecoderModel.from_pretrained(id, { dtype: 'fp32', progress_callback });
+      LOCAL.tok = await T.PreTrainedTokenizer.from_pretrained(id);
+    };
+    try { await load(); }
+    catch (e) {
+      if (src.local) throw e;
+      env.remoteHost = 'https://raw.githubusercontent.com/';
+      env.remotePathTemplate = 'alephpi/Texo-web/refs/heads/master/models/model/';
+      await load();
+    }
+    lsSet('lemma:readerReady', '1');
+  })().catch(e => { LOCAL.loading = null; throw { code: 'reader_failed', message: String(e && e.message || e) }; });
+  return LOCAL.loading;
+}
+async function ensureReader(onStatus) {
+  if (LOCAL.model) return;
+  const first = lsGet('lemma:readerReady') !== '1';
+  onStatus(first ? 'Downloading the maths reader. This happens once and takes about 80 MB.' : 'Starting the maths reader');
+  await loadReader(f => onStatus((first ? 'Downloading the maths reader (once): ' : 'Loading the maths reader: ') + Math.round(f * 100) + '%'));
+}
+function texoInput(src) {
+  const W0 = src.width, H0 = src.height, g = src.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W0, H0).data;
+  let x0 = W0, y0 = H0, x1 = 0, y1 = 0;
+  for (let y = 0; y < H0; y++) for (let x = 0; x < W0; x++) {
+    const i = (y * W0 + x) * 4, v = 0.299 * g[i] + 0.587 * g[i + 1] + 0.114 * g[i + 2];
+    if (v < 200) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 <= x0 || y1 <= y0) return null;
+  const cw = x1 - x0, ch = y1 - y0, s = Math.min(384 / cw, 384 / ch), nw = Math.max(1, Math.round(cw * s)), nh = Math.max(1, Math.round(ch * s));
+  const c = document.createElement('canvas'); c.width = c.height = 384;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.fillStyle = '#000'; x.fillRect(0, 0, 384, 384);
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(src, x0, y0, cw, ch, Math.floor((384 - nw) / 2), Math.floor((384 - nh) / 2), nw, nh);
+  const d = x.getImageData(0, 0, 384, 384).data, arr = new Float32Array(384 * 384);
+  for (let i = 0; i < arr.length; i++) { const v = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]; arr[i] = (v / 255 - 0.7931) / 0.1738; }
+  return arr;
+}
+async function ocrCanvas(c) {
+  const T = LOCAL.T, arr = texoInput(c);
+  if (!arr) return '';
+  const t = new T.Tensor('float32', arr, [1, 1, 384, 384]);
+  const out = await LOCAL.model.generate({ inputs: T.cat([t, t, t], 1), max_new_tokens: 256 });
+  return LOCAL.tok.batch_decode(out, { skip_special_tokens: true })[0] || '';
+}
+function cleanTex(t) {
+  return String(t || '').replace(/\s+/g, ' ').replace(/(\\[a-zA-Z]+) (?=[a-zA-Z])/g, '$1\u0001').replace(/ /g, '').replace(/\u0001/g, ' ').trim();
+}
+function inkIn(rect) {
+  return cur.items.filter(s => {
+    if (!(s.t === 'p' || s.t === 'f' || s.t === 's' || s.t === 'l')) return false;
+    const b = s._bb || bbox(s);
+    return !rect || !(b[2] < rect[0] || b[0] > rect[2] || b[3] < rect[1] || b[1] > rect[3]);
+  });
+}
+function segmentLines(items) {
+  if (!items.length) return [];
+  const bbs = items.map(s => ({ s, b: s._bb || bbox(s) }));
+  const hs = bbs.map(o => o.b[3] - o.b[1]).sort((a, b) => a - b);
+  const med = Math.max(8, hs[Math.floor(hs.length / 2)]);
+  bbs.sort((a, b) => a.b[1] - b.b[1]);
+  const lines = [];
+  let L = null;
+  for (const o of bbs) {
+    if (!L || o.b[1] > L.b[3] + 0.25 * med) { L = { items: [], b: o.b.slice() }; lines.push(L); }
+    L.items.push(o.s);
+    L.b[0] = Math.min(L.b[0], o.b[0]); L.b[1] = Math.min(L.b[1], o.b[1]); L.b[2] = Math.max(L.b[2], o.b[2]); L.b[3] = Math.max(L.b[3], o.b[3]);
+  }
+  return lines;
+}
+function renderInk(items, b) {
+  const h = b[3] - b[1], w = b[2] - b[0], sc = clamp(90 / Math.max(20, h), 0.6, 4), pad = 12;
+  const c = document.createElement('canvas');
+  c.width = Math.max(8, Math.ceil(w * sc + pad * 2)); c.height = Math.max(8, Math.ceil(h * sc + pad * 2));
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+  x.setTransform(sc, 0, 0, sc, pad - b[0] * sc, pad - b[1] * sc);
+  x.fillStyle = '#000'; x.strokeStyle = '#000'; x.lineCap = 'round'; x.lineJoin = 'round';
+  for (const s of items) { if (s.t === 'l') { x.lineWidth = s.w; x.stroke(pathOf(s)); } else x.fill(pathOf(s)); }
+  return c;
+}
+const lineKey = items => items.map(s => s.p.length + ':' + s.p[0].toFixed(1) + ',' + s.p[1].toFixed(1)).join('|');
+async function localRecognize(rect, onStatus, signal) {
+  const lines = segmentLines(inkIn(rect));
+  if (!lines.length) return [];
+  await ensureReader(onStatus);
+  for (let k = 0; k < lines.length; k++) {
+    if (signal && signal.aborted) throw { code: 'cancelled' };
+    const L = lines[k], key = lineKey(L.items);
+    let tex = LOCAL.cache.get(key);
+    if (tex == null) {
+      onStatus(`Reading line ${k + 1} of ${lines.length}`);
+      tex = cleanTex(await ocrCanvas(renderInk(L.items, L.b)));
+      if (LOCAL.cache.size > 400) LOCAL.cache.clear();
+      LOCAL.cache.set(key, tex);
+    }
+    L.latex = tex;
+  }
+  return lines;
+}
+
+/* ---- LaTeX to plain maths ---- */
+const TEX_FN = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'sinh', 'cosh', 'tanh', 'arcsin', 'arccos', 'arctan', 'ln', 'log', 'exp', 'lg']);
+const TEX_GREEK = new Set(['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'varepsilon', 'zeta', 'eta', 'theta', 'vartheta', 'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'rho', 'sigma', 'tau', 'upsilon', 'phi', 'varphi', 'chi', 'psi', 'omega', 'pi']);
+const TEX_BAD = { neq: 'not-equal signs', ne: 'not-equal signs', approx: 'approximations', pm: '± signs', mp: '± signs', sim: 'similarity signs', equiv: 'equivalence signs', cong: 'congruence signs', propto: 'proportion signs', lim: 'limits', sum: 'sums', prod: 'products', iint: 'double integrals', oint: 'contour integrals', partial: 'partial derivatives', nabla: 'vector calculus', vec: 'vectors', overline: 'bars over symbols', hat: 'hats', bar: 'bars over symbols', matrix: 'matrices', begin: 'matrices or arrays', end: 'matrices or arrays', text: 'words', dots: 'dots', in: 'set notation', cup: 'set notation', cap: 'set notation', forall: 'quantifiers', exists: 'quantifiers', angle: 'angles', triangle: 'geometry symbols', perp: 'geometry symbols', parallel: 'geometry symbols' };
+function texToPlain(tex) {
+  const s = String(tex || ''); let i = 0;
+  const ws = () => { while (i < s.length && /\s/.test(s[i])) i++; };
+  const cmdName = () => { i++; if (i >= s.length) return ''; if (!/[a-zA-Z]/.test(s[i])) return s[i++]; let n = ''; while (i < s.length && /[a-zA-Z]/.test(s[i])) n += s[i++]; return n; };
+  const raw = () => {
+    ws();
+    if (s[i] === '{') { let d = 0; const st = i; for (; i < s.length; i++) { if (s[i] === '{') d++; else if (s[i] === '}') { d--; if (d === 0) { i++; break; } } } return s.slice(st + 1, i - 1); }
+    if (s[i] === '\\') { const st = i; cmdName(); return s.slice(st, i); }
+    return s[i++] || '';
+  };
+  const arg = () => texToPlain(raw());
+  const fnArg = () => {
+    ws();
+    if (s.startsWith('\\left(', i) || s[i] === '(') {
+      const st = i; let d = 0;
+      while (i < s.length) {
+        if (s.startsWith('\\left(', i)) { d++; i += 6; continue; }
+        if (s.startsWith('\\right)', i)) { d--; i += 7; if (d === 0) break; continue; }
+        if (s[i] === '(') d++; else if (s[i] === ')') { d--; if (d === 0) { i++; break; } }
+        i++;
+      }
+      return texToPlain(s.slice(st, i));
+    }
+    if (s[i] === '{') return '(' + arg() + ')';
+    let out = '';
+    while (i < s.length) {
+      ws(); const c = s[i];
+      if (/[0-9a-zA-Z.]/.test(c)) { out += c; i++; }
+      else if (c === '\\') { const st = i, n = cmdName(); if (TEX_GREEK.has(n)) out += ' ' + n + ' '; else { i = st; break; } }
+      else if (c === '^') { i++; out += '^(' + arg() + ')'; }
+      else break;
+    }
+    return out;
+  };
+  let out = '';
+  while (i < s.length) {
+    const c = s[i];
+    if (/\s/.test(c)) { i++; continue; }
+    if (c === '\\') {
+      const n = cmdName();
+      if (n === 'frac' || n === 'dfrac' || n === 'tfrac') {
+        const A = raw(), B = raw();
+        const a = A.replace(/\\mathrm|\\,|\s|[{}]/g, ''), b = B.replace(/\\mathrm|\\,|\s|[{}]/g, '');
+        if (a === 'd' && /^d[a-z]$/.test(b)) { out += ' ddx(' + fnArg() + ')'; continue; }
+        if (/^d[a-z]$/.test(a) && /^d[a-z]$/.test(b)) { out += a[1] + "'"; continue; }
+        if (/^d\^2[a-z]$/.test(a) && /^d[a-z]\^2$/.test(b)) { out += a[3] + "''"; continue; }
+        out += '((' + texToPlain(A) + ')/(' + texToPlain(B) + '))'; continue;
+      }
+      if (n === 'sqrt') { ws(); let idx = null; if (s[i] === '[') { const e = s.indexOf(']', i); idx = texToPlain(s.slice(i + 1, e)); i = e + 1; } const A = arg(); out += idx ? ` nthRoot(${A},${idx})` : ` sqrt(${A})`; continue; }
+      if (n === 'left' || n === 'right' || /^(big|Big|bigg|Bigg)[lr]?$/.test(n)) {
+        ws();
+        if (s[i] === '.') i++;
+        else if (s[i] === '\\') { const st = i, m = cmdName(); if (m === '{') out += '('; else if (m === '}') out += ')'; else if (m === 'vert' || m === '|' || m === 'lvert' || m === 'rvert') out += '|'; else i = st; }
+        continue;
+      }
+      if (n === 'cdot' || n === 'times' || n === 'ast') { out += '*'; continue; }
+      if (n === 'div') { out += '/'; continue; }
+      if (n === 'le' || n === 'leq' || n === 'leqslant') { out += '<='; continue; }
+      if (n === 'ge' || n === 'geq' || n === 'geqslant') { out += '>='; continue; }
+      if (['to', 'rightarrow', 'Rightarrow', 'implies', 'Longrightarrow', 'longrightarrow', 'therefore', 'iff', 'Leftrightarrow'].includes(n)) { out += ' ⇒ '; continue; }
+      if (TEX_FN.has(n)) {
+        const name = n === 'lg' ? 'log10' : n.replace(/^arc/, 'a');
+        ws(); let pw = null;
+        if (s[i] === '^') { i++; pw = arg(); }
+        ws();
+        if (s[i] === '_') { i++; const base = arg(); out += ` log(${fnArg()},${base})`; continue; }
+        const A = fnArg();
+        out += ' ' + (pw ? (pw === '-1' ? `a${name}(${A})` : `(${name}(${A}))^(${pw})`) : `${name}(${A})`);
+        continue;
+      }
+      if (['operatorname', 'mathrm', 'mathit', 'mathbf', 'textrm', 'boldsymbol', 'mathsf'].includes(n)) { out += ' ' + raw().replace(/\s/g, '') + ' '; continue; }
+      if (n === 'text' || n === 'mbox' || n === 'textit') { const A = raw().trim(); out += /^(and|or)$/i.test(A) ? ' ∨ ' : /^(so|then|hence|thus)$/i.test(A) ? ' ⇒ ' : ' ⟂text '; continue; }
+      if (n === 'int') { let lo = '', hi = ''; for (let k = 0; k < 2; k++) { ws(); if (s[i] === '_') { i++; lo = arg(); } else if (s[i] === '^') { i++; hi = arg(); } } out += `∫{${lo}}{${hi}}`; continue; }
+      if (TEX_BAD[n]) { out += ' ⟂' + n + ' '; continue; }
+      if (n === 'infty') { out += 'Infinity'; continue; }
+      if (n === 'circ' || n === 'degree') { out += '*(pi/180)'; continue; }
+      if (n === 'prime') { out += "'"; continue; }
+      if (TEX_GREEK.has(n)) { out += ' ' + (n === 'varepsilon' ? 'epsilon' : n === 'varphi' ? 'phi' : n === 'vartheta' ? 'theta' : n) + ' '; continue; }
+      if ([',', ';', ':', '!', ' ', 'quad', 'qquad', 'displaystyle', 'textstyle', 'limits', 'mathrm', 'hspace'].includes(n)) continue;
+      if (n === '{') { out += '('; continue; }
+      if (n === '}') { out += ')'; continue; }
+      if (n === '\\') { out += ' ⇒ '; continue; }
+      if (n === '%') { out += '/100'; continue; }
+      if (n === 'vert' || n === 'lvert' || n === 'rvert' || n === '|' || n === 'mid') { out += '|'; continue; }
+      if (n === 'ldots' || n === 'cdots') { out += ' ⟂dots '; continue; }
+      out += ' ' + n + ' '; continue;
+    }
+    if (c === '^') {
+      i++; const A = arg();
+      if (A === '*(pi/180)') out += A;
+      else if (/^'+$/.test(A)) out += A;
+      else out += '^(' + A + ')';
+      continue;
+    }
+    if (c === '_') { i++; const A = raw().replace(/\s/g, ''); if (/^[a-zA-Z0-9]+$/.test(A) && /[a-zA-Z0-9]$/.test(out)) out += '_' + A; continue; }
+    if (c === '{') { out += '(' + arg() + ')'; continue; }
+    if (c === '}' || c === '&') { i++; continue; }
+    if (c === '[') { out += '('; i++; continue; }
+    if (c === ']') { out += ')'; i++; continue; }
+    out += c; i++;
+  }
+  return out;
+}
+
+/* ---- the checker ---- */
+let chkSeed = 987654321;
+const chkRand = () => { chkSeed = (chkSeed * 16807) % 2147483647; return chkSeed / 2147483647; };
+function chkFree(node, S) {
+  const out = new Set();
+  gWalk(node, (k, name, n) => {
+    if (k === 'fn') {
+      const dm = name.match(/^(\w+?)__d\d$/), base = dm ? dm[1] : name;
+      if (base === 'ddx') { out.add('x'); return; }
+      if (S.fnNames.has(base) || GFN[base]) return;
+      if (n.args.length === 1 && /^[a-zA-Z]$/.test(name)) out.add(name);
+      return;
+    }
+    if (G_CONST.has(name) || S.names.has(name)) return;
+    if (/^[a-zA-Z]{2,}$/.test(name)) { for (const p of gSymParts(name)) if (!G_CONST.has(p)) out.add(p); return; }
+    out.add(name);
+  });
+  return out;
+}
+const chkSame = (a, b, tol) => Math.abs(a - b) <= tol * (1 + Math.abs(a) + Math.abs(b));
+function chkPts(nv) {
+  const pts = [];
+  if (!nv) return [[]];
+  for (const v of [2, 1, 3, 0.5, -1, -2]) pts.push(Array(nv).fill(v));
+  for (let k = 0; k < 18; k++) pts.push(Array.from({ length: nv }, () => { let v = k % 2 ? 0.2 + chkRand() * 3.3 : chkRand() * 7 - 3.5; if (Math.abs(v) < 0.15) v += 0.6; return v; }));
+  return pts;
+}
+function chkCmpExpr(f1, f2, nv, tol) {
+  let good = 0, nbad = 0, bad = null;
+  for (const p of chkPts(nv)) {
+    let a, b; try { a = f1(...p); b = f2(...p); } catch (e) { continue; }
+    if (!isFinite(a) || !isFinite(b)) continue;
+    if (chkSame(a, b, tol)) good++; else { nbad++; if (!bad) bad = { p, a, b }; }
+  }
+  if (nbad >= 2 || (nbad && good < 3)) return Object.assign({ res: 'ne' }, bad);
+  return { res: good >= Math.min(3, nv ? 3 : 1) ? 'eq' : 'unknown' };
+}
+function chkRoots(g, lo = -30, hi = 30, n = 6000) {
+  const out = [], push = r => { if (!out.some(q => Math.abs(q - r) < 1e-6 * (1 + Math.abs(r)))) out.push(r); };
+  const xs = [], vs = [];
+  for (let k = 0; k <= n; k++) { const x = lo + (hi - lo) * k / n; let v; try { v = g(x); } catch (e) { v = NaN; } xs.push(x); vs.push(v); }
+  for (let k = 1; k <= n; k++) {
+    const a0 = vs[k - 1], b0 = vs[k];
+    if (!isFinite(a0) || !isFinite(b0)) continue;
+    if (b0 === 0) { push(xs[k]); continue; }
+    if (a0 * b0 < 0) {
+      let a = xs[k - 1], b = xs[k], fa = a0;
+      for (let it = 0; it < 60; it++) { const m = (a + b) / 2, fm = g(m); if (!isFinite(fm)) break; if ((fm > 0) === (fa > 0)) { a = m; fa = fm; } else b = m; }
+      const r = (a + b) / 2, fr = g(r);
+      if (isFinite(fr) && Math.abs(fr) < 1e-6 * (1 + Math.abs(a0) + Math.abs(b0))) push(r);
+    } else if (k < n && isFinite(vs[k + 1]) && Math.abs(b0) < Math.abs(a0) && Math.abs(b0) < Math.abs(vs[k + 1]) && a0 * vs[k + 1] > 0) {
+      let a = xs[k - 1], b = xs[k + 1];
+      const h = x => Math.abs(g(x));
+      for (let it = 0; it < 80; it++) { const m1 = a + (b - a) / 3, m2 = b - (b - a) / 3; if (h(m1) < h(m2)) b = m2; else a = m1; }
+      const r = (a + b) / 2;
+      if (Math.abs(g(r)) < 1e-9 * (1 + Math.abs(a0))) push(Math.abs(r - Math.round(r)) < 1e-6 ? Math.round(r) : r);
+    }
+  }
+  return out;
+}
+function chkZeroPts(g, nv, j) {
+  const pts = [];
+  for (let k = 0; k < 10 && pts.length < 14; k++) {
+    const base = Array.from({ length: nv }, () => chkRand() * 5 - 2.5);
+    const rs = chkRoots(t => { const q = base.slice(); q[j] = t; return g(...q); }, -20, 20, 1600);
+    for (const r of rs.slice(0, 2)) { const q = base.slice(); q[j] = r; pts.push(q); }
+  }
+  return pts;
+}
+function chkOnZero(g, p, j) {
+  const r = p[j], d = 1e-5 * (1 + Math.abs(r)), q1 = p.slice(), q2 = p.slice(); q1[j] = r - d; q2[j] = r + d;
+  const a = g(...q1), b = g(...q2), c = g(...p);
+  if (!isFinite(c)) return false;
+  return a * b <= 0 || Math.abs(c) < 1e-7 * (1 + Math.abs(a) + Math.abs(b));
+}
+const fmtAt = (vars, p) => vars.map((v, k) => `${v} = ${gFmt4(p[k])}`).join(', ');
+const fmtRoots = (v, rs) => { const t = rs.slice(0, 3).map(r => `${v} = ${gFmt4(r)}`); if (rs.length > 3) return t.join(', ') + ` and ${rs.length - 3} more`; return t.length > 1 ? t.slice(0, -1).join(', ') + ' and ' + t[t.length - 1] : t[0]; };
+function checkLines(texList) {
+  const S = { vals: Object.create(null), fns: Object.create(null), names: new Set(), fnNames: new Set(), fnVar: {} };
+  const res = [];
+  let prevEq = null, prevExpr = null;
+  let topicD = 0, topicI = 0, topicSolve = 0, topicArith = 0;
+  const compileParts = (parts) => {
+    const nodes = parts.map(p => gParse(gPrep(p)));
+    const vs = new Set(); nodes.forEach(n => chkFree(n, S).forEach(v => vs.add(v)));
+    const vars = [...vs].sort();
+    return { nodes, vars, fns: nodes.map(n => gCompile(n, vars, S)) };
+  };
+  const unprime = str => str.replace(/\b([a-zA-Z])('+)(\s*\()?/g, (m, f, p, par) => !S.fnNames.has(f) ? m : par ? `${f}__d${p.length}(` : `${f}__d${p.length}(${S.fnVar[f] || 'x'})`);
+  let solved = false;
+  for (const tex of texList) {
+    const out = { latex: tex, status: 'unclear', note: '' };
+    res.push(out);
+    if (!tex || !tex.trim()) { out.note = 'Lemma could not read this line. Try writing it a little larger.'; continue; }
+    let plain = '';
+    try { plain = texToPlain(tex); } catch (e) { out.note = 'Lemma could not read this line clearly.'; continue; }
+    const bad = plain.match(/⟂(\w+)/);
+    if (bad) { out.note = `Lemma can't check ${TEX_BAD[bad[1]] || 'this kind of line'} on the iPad yet.`; prevEq = null; continue; }
+    if (/<|>/.test(plain)) { out.note = 'Lemma can\u2019t check inequalities on the iPad yet.'; prevEq = null; continue; }
+    try {
+      const segs = plain.split('⇒').map(x => x.trim()).filter(Boolean);
+      let lineStatus = null, note = '';
+      for (const seg0 of segs) {
+        const alts = gSplitTop(seg0, '∨').map(x => x.trim()).filter(Boolean);
+        const altList = alts.length > 1 ? alts : gSplitTop(seg0, ',').map(x => x.trim()).filter(Boolean);
+        if (altList.length > 1 && altList.every(a => /^[a-zA-Z]=[^=]+$/.test(a)) && new Set(altList.map(a => a[0])).size === 1) {
+          const v = altList[0][0], vals = altList.map(a => gCompile(gParse(gPrep(a.slice(2))), [], S)());
+          const r = cmpWithPrev({ kind: 'set', v, vals });
+          lineStatus = worse(lineStatus, r.status); note = note || r.note; topicSolve++;
+          continue;
+        }
+        let parts = gSplitTop(seg0.replace(/==/g, '='), '=').map(x => x.trim());
+        const isCont = parts[0] === '';
+        if (parts[0] === '') { if (!prevExpr) { lineStatus = worse(lineStatus, 'unclear'); note = note || 'This line starts with = but Lemma could not find what it continues from.'; continue; } parts[0] = prevExpr; }
+        parts = parts.map(unprime);
+        if (parts.some(p => p.includes('∫'))) { const r = checkIntegral(parts); lineStatus = worse(lineStatus, r.status); note = note || r.note; topicI++; prevExpr = parts[parts.length - 1]; prevEq = null; continue; }
+        if (parts.some(p => /__d\d|ddx\(/.test(p))) topicD++;
+        if (parts.length === 1) {
+          const C = compileParts(prevExpr ? [prevExpr, parts[0]] : [parts[0]]);
+          if (prevExpr) {
+            const r = chkCmpExpr(C.fns[0], C.fns[1], C.vars.length, 1e-6);
+            if (r.res === 'eq') lineStatus = worse(lineStatus, 'ok');
+            else if (r.res === 'ne') { lineStatus = 'error'; note = note || `This isn't equal to the line above. At ${fmtAt(C.vars, r.p)} the line above gives ${gFmt4(r.a)} but this gives ${gFmt4(r.b)}.`; }
+            else lineStatus = worse(lineStatus, 'unclear');
+          } else lineStatus = worse(lineStatus, 'given');
+          prevExpr = parts[0];
+          continue;
+        }
+        if (parts.some(p => /[a-zA-Z]'/.test(p))) { lineStatus = worse(lineStatus, 'unclear'); note = note || 'Write what the function equals on an earlier line, then Lemma can check its derivative.'; prevExpr = null; continue; }
+        const dm = parts.length === 2 && parts[0].match(/^([a-zA-Z])(?:\(([a-zA-Z])\))?$/);
+        const usedBefore = dm && !dm[2] && prevEq && prevEq.kind === 'eq' && prevEq.vars.includes(dm[1]);
+        if (dm && !usedBefore) {
+          const C0 = compileParts([parts[1]]);
+          const name = dm[1], v = dm[2] || (C0.vars.length === 1 ? C0.vars[0] : null);
+          if (v && !C0.vars.includes(name) && C0.vars.every(x => x === v) && C0.vars.length) {
+            const f = gCompile(C0.nodes[0], [v], S);
+            if (S.fnNames.has(name) && S.fns[name]) {
+              const r = chkCmpExpr(S.fns[name], f, 1, 1e-6);
+              if (r.res === 'ne') { lineStatus = 'error'; note = note || `This doesn't match the earlier line for ${name}. At ${v} = ${gFmt4(r.p[0])} that gave ${gFmt4(r.a)}, but this gives ${gFmt4(r.b)}.`; }
+              else lineStatus = worse(lineStatus, r.res === 'eq' ? 'ok' : 'unclear');
+            } else lineStatus = worse(lineStatus, 'given');
+            S.fnNames.add(name); S.fns[name] = f; S.fnVar[name] = v;
+            prevExpr = parts[1]; prevEq = null;
+            continue;
+          }
+        }
+        const C = compileParts(parts);
+        const nv = C.vars.length, deriv = parts.some(p => /__d\d|ddx\(/.test(p)), tol = deriv ? 2e-4 : 1e-6;
+        if (!nv) {
+          topicArith++;
+          let fail = null;
+          for (let k = 0; k + 1 < parts.length; k++) { const a = C.fns[k](), b = C.fns[k + 1](); if (!(isFinite(a) && isFinite(b) && chkSame(a, b, 1e-9))) { fail = { a, b }; break; } }
+          if (fail) { lineStatus = 'error'; note = note || `The two sides aren't equal: ${gFmt4(fail.a)} on the left and ${gFmt4(fail.b)} on the right.`; }
+          else lineStatus = worse(lineStatus, 'ok');
+          prevExpr = parts[parts.length - 1]; prevEq = null;
+          continue;
+        }
+        let allId = true, failK = -1, failR = null;
+        for (let k = 0; k + 1 < parts.length; k++) { const r = chkCmpExpr(C.fns[k], C.fns[k + 1], nv, tol); if (r.res !== 'eq') { allId = false; if (r.res === 'ne' && failK < 0) { failK = k; failR = r; } } }
+        if (allId) { lineStatus = worse(lineStatus, 'ok'); prevExpr = parts[parts.length - 1]; continue; }
+        if (deriv || parts.length > 2 || isCont) {
+          lineStatus = 'error';
+          note = note || (deriv && failR
+            ? `Differentiating gives ${gFmt4(failR.a)} at ${fmtAt(C.vars, failR.p)}, but this line gives ${gFmt4(failR.b)} there.`
+            : failR ? `These aren't equal. At ${fmtAt(C.vars, failR.p)} one side gives ${gFmt4(failR.a)} and the other gives ${gFmt4(failR.b)}.` : 'Lemma could not confirm this step.');
+          prevExpr = parts[parts.length - 1]; continue;
+        }
+        const eq = { kind: 'eq', vars: C.vars, g: (...a) => C.fns[0](...a) - C.fns[1](...a) };
+        if (nv === 1) topicSolve++;
+        const r = cmpWithPrev(eq);
+        lineStatus = worse(lineStatus, r.status); note = note || r.note;
+        prevExpr = parts[1];
+      }
+      out.status = lineStatus || 'unclear'; out.note = note;
+    } catch (e) {
+      out.status = 'unclear';
+      out.note = e && e.missing ? `Lemma couldn't work out what ${e.missing.join(', ')} means here.` : 'Lemma could not turn this line into maths it can check.';
+      prevEq = null;
+    }
+  }
+  function worse(a, b) { const rank = { given: 0, ok: 1, unclear: 2, error: 3 }; if (!a) return b; return rank[b] > rank[a] ? b : a; }
+  function cmpWithPrev(eq) {
+    const pe = prevEq; prevEq = eq;
+    if (!pe || solved) { solved = isSolution(eq); return { status: 'given', note: '' }; }
+    solved = isSolution(eq);
+    const a = pe.kind === 'set' ? { v: pe.v, roots: pe.vals } : null, b = eq.kind === 'set' ? { v: eq.v, roots: eq.vals } : null;
+    const single = e => e.kind === 'set' ? e.v : (e.vars.length === 1 ? e.vars[0] : null);
+    const va = single(pe), vb = single(eq);
+    if (va && vb) {
+      if (va !== vb) return { status: 'given', note: '' };
+      const r1 = a ? a.roots : chkRoots(x => pe.g(x)), r2 = b ? b.roots : chkRoots(x => eq.g(x));
+      const near = (r, list) => list.some(q => Math.abs(q - r) < 1e-5 * (1 + Math.abs(r)));
+      const lost = r1.filter(r => !near(r, r2)), extra = r2.filter(r => !near(r, r1));
+      if (!lost.length && !extra.length) {
+        if (r1.length || r2.length) return { status: 'ok', note: '' };
+        return { status: 'unclear', note: 'Lemma couldn\u2019t find a solution to compare between these lines.' };
+      }
+      if (!r2.length) return { status: 'error', note: `This line has no solution, but the line above has ${fmtRoots(va, r1)}.` };
+      if (lost.length && extra.length) return { status: 'error', note: `This line gives ${fmtRoots(va, r2)}, but the line above gives ${fmtRoots(va, r1)}.` };
+      if (lost.length) return { status: 'error', note: `${fmtRoots(va, lost)} ${lost.length > 1 ? 'solve' : 'solves'} the line above but not this one, so a solution was lost.` };
+      return { status: 'unclear', note: `This step adds ${fmtRoots(va, extra)}, which doesn't solve the line above. Squaring or multiplying by an expression can add solutions.` };
+    }
+    if (pe.kind === 'set' || eq.kind === 'set') return { status: 'given', note: '' };
+    const vars = [...new Set([...pe.vars, ...eq.vars])].sort();
+    if (vars.length > pe.vars.length + 1 || vars.length > eq.vars.length + 1) return { status: 'given', note: '' };
+    const lift = e => { const idx = e.vars.map(v => vars.indexOf(v)); return (...p) => e.g(...idx.map(k => p[k])); };
+    const g1 = lift(pe), g2 = lift(eq), j = vars.includes('y') ? vars.indexOf('y') : vars.length - 1;
+    const P1 = chkZeroPts(g1, vars.length, j), P2 = chkZeroPts(g2, vars.length, j);
+    if (!P1.length && !P2.length) return { status: 'unclear', note: 'Lemma couldn\u2019t confirm this step.' };
+    const in12 = P1.every(p => chkOnZero(g2, p, j)), in21 = P2.every(p => chkOnZero(g1, p, j));
+    if (in12 && in21) return { status: 'ok', note: '' };
+    if (in12) return { status: 'unclear', note: 'This line allows values that the line above doesn\u2019t. Check for extra solutions.' };
+    const p = P1.find(q => !chkOnZero(g2, q, j));
+    return { status: 'error', note: `This doesn't follow from the line above. ${fmtAt(vars, p)} satisfies the line above but not this one.` };
+  }
+  function isSolution(e) {
+    if (e.kind === 'set') return true;
+    if (e.vars.length !== 1) return false;
+    const r = chkRoots(x => e.g(x));
+    if (r.length !== 1) return false;
+    const v = r[0]; let lin = true;
+    for (const t of [v - 1, v + 1, v + 2.5]) { const val = e.g(t); if (!isFinite(val) || !chkSame(val, (t - v) * (e.g(v + 1) - e.g(v)), 1e-6)) lin = false; }
+    return lin && chkSame(Math.abs(e.g(v + 1) - e.g(v)), 1, 1e-9);
+  }
+  function checkIntegral(parts) {
+    if (parts.length !== 2) return { status: 'unclear', note: 'Write the integral and its answer on one line, like ∫ 2x dx = x² + C.' };
+    const k = parts[0].includes('∫') ? 0 : 1, I = parts[k].replace(/\s/g, ''), other = parts[1 - k];
+    const m = I.match(/^∫\{(.*?)\}\{(.*?)\}(.+)d([a-z])$/);
+    if (!m) return { status: 'unclear', note: 'Lemma couldn\u2019t find the dx at the end of this integral.' };
+    const [, lo, hi, body, v] = m;
+    const fi = gCompile(gParse(gPrep(body)), [v], S);
+    if (lo && hi) {
+      const a = gCompile(gParse(gPrep(lo)), [], S)(), b = gCompile(gParse(gPrep(hi)), [], S)(), n = 800, hstep = (b - a) / n;
+      let sum = fi(a) + fi(b); for (let q = 1; q < n; q++) sum += fi(a + q * hstep) * (q % 2 ? 4 : 2);
+      const val = sum * hstep / 3, ans = gCompile(gParse(gPrep(other)), [], S)();
+      if (!isFinite(val) || !isFinite(ans)) return { status: 'unclear', note: 'Lemma couldn\u2019t evaluate this integral.' };
+      return chkSame(val, ans, 1e-5) ? { status: 'ok', note: '' } : { status: 'error', note: `The integral works out to ${gFmt4(val)}, not ${gFmt4(ans)}.` };
+    }
+    const F = gCompile(gParse(gPrep(other.replace(/\+\s*[Cc]\s*$/, '').replace(/^\s*[Cc]\s*\+/, ''))), [v], S);
+    const r = chkCmpExpr(x => GH.d1(F, x), fi, 1, 2e-4);
+    if (r.res === 'eq') return { status: 'ok', note: /[Cc]\s*$/.test(other) ? '' : 'Correct, but remember the + C.' };
+    if (r.res === 'ne') return { status: 'error', note: `Differentiating your answer gives ${gFmt4(r.a)} at ${v} = ${gFmt4(r.p[0])}, but the integrand is ${gFmt4(r.b)} there.` };
+    return { status: 'unclear', note: 'Lemma couldn\u2019t confirm this integral.' };
+  }
+  const errs = res.filter(r => r.status === 'error'), unc = res.filter(r => r.status === 'unclear'), oks = res.filter(r => r.status === 'ok');
+  const topic = topicD ? 'Differentiation' : topicI ? 'Integration' : topicSolve ? 'Solving equations' : topicArith ? 'Arithmetic' : 'Algebra';
+  let summary;
+  if (errs.length) { const k = res.indexOf(errs[0]) + 1; summary = `Line ${k} has a mistake. ${errs[0].note}`; }
+  else if (oks.length && !unc.length) summary = 'Every line follows from the one above.';
+  else if (oks.length) summary = `${oks.length} line${oks.length > 1 ? 's' : ''} check out. Lemma couldn't check ${unc.length}.`;
+  else summary = res.length ? 'Lemma read your working but had nothing to compare yet. Add the next step and check again.' : 'No working found on screen.';
+  return { topic, summary, lines: res };
+}
+
+/* ---- features using the on-device reader ---- */
+function readerError(e) {
+  if (e && e.code === 'cancelled') return '';
+  if (e && e.code === 'reader_failed') return navigator.onLine === false ? 'The maths reader needs to download once. Connect to the internet and try again.' : 'Lemma could not download the maths reader. Check your connection and try again.';
+  return 'Something went wrong reading your handwriting. Try again.';
+}
+async function localCheck() {
+  const out = $('#checkOut'), pid = cur.pid;
+  if (!inkIn(visRect()).length) { out.replaceChildren(noticeNode('There is nothing on screen to check yet. Write some working first.', 'warn')); return; }
+  checkCtl = new AbortController(); setRunBtn('#runCheck', checkCtl, 'Check working on screen');
+  try {
+    const lines = await localRecognize(visRect(), t => out.replaceChildren(statusNode(t)), checkCtl.signal);
+    out.replaceChildren(statusNode('Checking each step'));
+    await sleep(10);
+    const r = checkLines(lines.map(l => l.latex));
+    if (cur.pid !== pid) return;
+    const x0 = Math.min(...lines.map(l => l.b[0])) - 10, y0 = Math.min(...lines.map(l => l.b[1])) - 10;
+    const x1 = Math.max(...lines.map(l => l.b[2])) + 10, y1 = Math.max(...lines.map(l => l.b[3])) + 10;
+    const bounds = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    cur.check = { at: Date.now(), bounds, topic: r.topic, summary: r.summary, lines: r.lines.map((l, k) => Object.assign(l, { top: (lines[k].b[1] - y0) / bounds.h, bottom: (lines[k].b[3] - y0) / bounds.h })) };
+    const latexAll = r.lines.map(l => l.latex).join('\n');
+    if (latexAll && cur.tx.length < 2000) cur.tx = (cur.tx ? cur.tx + '\n' : '') + latexAll;
+    markDirty(); cur.checkRev = cur.rev;
+    buildFlags(); renderCheck();
+  } catch (e) { const m = readerError(e); out.replaceChildren(...(m ? [noticeNode(m)] : [])); }
+  finally { checkCtl = null; setRunBtn('#runCheck', null, 'Check working on screen'); }
+}
+async function localTex() {
+  const st = $('#texStatus');
+  if (!inkIn(null).length) { st.replaceChildren(noticeNode('This page is empty. Write something first.', 'warn')); return; }
+  texCtl = new AbortController(); setRunBtn('#runTex', texCtl, 'Convert this page');
+  try {
+    const lines = await localRecognize(null, t => st.replaceChildren(statusNode(t)), texCtl.signal);
+    const body = lines.map(l => l.latex).filter(Boolean);
+    const src = body.length > 1 ? '\\begin{align*}\n' + body.map(t => t.includes('=') ? t.replace('=', '&=') : '&' + t).join(' \\\\\n') + '\n\\end{align*}' : (body[0] ? '\\[ ' + body[0] + ' \\]' : '');
+    $('#texSrc').value = src; showTexPreview(src); $('#texWrap').hidden = false;
+    st.replaceChildren(noticeNode('Read on this iPad. Check the result against your writing before you use it.', 'warn'));
+    cur.tx = src.slice(0, 6000); markDirty();
+  } catch (e) { const m = readerError(e); st.replaceChildren(...(m ? [noticeNode(m)] : [])); }
+  finally { texCtl = null; setRunBtn('#runTex', null, 'Convert this page'); }
+}
+
+/* practice questions from templates, with answers worked out by the maths engine */
+const pRand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pNZ = (a, b) => { let v; do v = pRand(a, b); while (v === 0); return v; };
+const pPick = a => a[Math.floor(Math.random() * a.length)];
+const pFix = s => s.replace(/\+\s*-\s*/g, '- ').replace(/-\s*-\s*/g, '+ ').replace(/(^|[^0-9.])1\s*x/g, '$1x');
+const pTex = s => math.parse(pFix(s)).toTex({ implicit: 'hide', parenthesis: 'auto' });
+const pSimp = s => math.simplify(s).toString();
+let pRot = 0;
+const pTake = T => T[(pRot++) % T.length];
+function pDiff(level) {
+  const a = pNZ(2, 6), b = pNZ(-5, 5), c = pRand(2, 5), k = pNZ(-3, 4), n = pRand(3, 6), m = pRand(2, 4);
+  const T = [
+    [[`${a}x^${n} + ${b}x^2 - ${c}x`, 'Power rule', `${a * n}x^${n - 1} + ${2 * b}x - ${c}`], [`${a}x^${n} - ${c}/x`, 'Power rule', `${a * n}x^${n - 1} + ${c}/x^2`], [`${a} sqrt(x) + ${b}x^${m}`, 'Power rule', `${a % 2 ? a + '/(2 sqrt(x))' : a / 2 + '/sqrt(x)'} + ${b * m}x^${m - 1}`]],
+    [[`(${a}x + ${b})^${n}`, 'Chain rule'], [`x^${m} e^(${k}x)`, 'Product rule'], [`sin(${a}x) x^2`, 'Product rule'], [`log(${a}x^2 + ${c})`, 'Chain rule'], [`cos(${a}x^2)`, 'Chain rule']],
+    [[`(${a}x + ${b}) / (x^2 + ${c})`, 'Quotient rule'], [`e^(${k}x) sin(${a}x)`, 'Product rule'], [`sqrt(${a}x^2 + ${c})`, 'Chain rule'], [`x^2 log(${a}x)`, 'Product rule'], [`sin(x)^${m}`, 'Chain rule']]
+  ][level];
+  const [f0, rule, manual] = pTake(T), f = pFix(f0);
+  let ans;
+  if (manual) ans = `Using the power rule on each term: $$\\frac{dy}{dx} = ${pTex(manual).replace(/\^\{1\}/g, '')}$$`;
+  else if (rule === 'Quotient rule') {
+    const num = math.simplify(pFix(`${a} * (x^2 + ${c}) - (${a}x + ${b}) * (2x)`)).toTex({ implicit: 'hide', parenthesis: 'auto' });
+    ans = `With $u = ${pTex(`${a}x + ${b}`)}$ and $v = x^2 + ${c}$: $$\\frac{dy}{dx} = \\frac{u'v - uv'}{v^2} = \\frac{${num}}{(x^2 + ${c})^2}$$`;
+  } else ans = `Using the ${rule.toLowerCase()}: $$\\frac{dy}{dx} = ${math.simplify(math.derivative(f, 'x')).toTex({ implicit: 'hide', parenthesis: 'auto' })}$$`;
+  return { question: `Differentiate $y = ${pTex(f)}$ with respect to $x$.`, answer: ans, skill: rule };
+}
+function pInt(level) {
+  const a = pNZ(2, 6), b = pNZ(-5, 5), k = pRand(2, 4), n = pRand(3, 5), c = pRand(1, 6);
+  let F, f, skill;
+  if (level === 0) { const m = n - 1, g = (p, q) => q ? g(q, p % q) : p, d = g(a, m + 1); F = (a % (m + 1) === 0 ? `${a / (m + 1)}x^${m + 1}` : `(${a / d}/${(m + 1) / d}) x^${m + 1}`) + ` + ${b}x`; f = `${a}x^${m} + ${b}`; skill = 'Power rule for integrals'; }
+  else if (level === 1) { const o = pTake([[`${a}/${k} e^(${k}x)`, `${a} e^(${k}x)`], [`${a}/${k} sin(${k}x)`, `${a} cos(${k}x)`], [`-${a}/${k} cos(${k}x)`, `${a} sin(${k}x)`], [`${a} log(x)`, `${a}/x`]]); F = o[0]; f = o[1]; skill = 'Standard integrals'; }
+  else { F = `(x^2 + ${c})^${n} / ${2 * n}`; f = `x * (x^2 + ${c})^${n - 1}`; skill = 'Integration by substitution'; }
+  const Fs = level === 0 ? math.parse(pFix(F)) : math.simplify(pFix(F));
+  const ft = pTex(f);
+  return { question: `Find $\\int ${/[+-]/.test(pFix(f)) ? '\\left(' + ft + '\\right)' : ft}\\,dx$.`, answer: `$$${Fs.toTex({ implicit: 'hide', parenthesis: 'auto' })} + C$$ Check it by differentiating: you get back $${pTex(f)}$.`, skill };
+}
+function pSolve(level) {
+  if (level === 0) {
+    const a = pNZ(2, 9), x0 = pNZ(-9, 9), b = pNZ(-12, 12), c = a * x0 + b;
+    return { question: `Solve $${a}x ${b < 0 ? '-' : '+'} ${Math.abs(b)} = ${c}$.`, answer: `${b < 0 ? `Add ${-b} to` : `Subtract ${b} from`} both sides: $${a}x = ${c - b}$. Divide by ${a}: $$x = ${x0}$$`, skill: 'Linear equations' };
+  }
+  if (level === 1) {
+    const r1 = pNZ(-7, 7); let r2; do r2 = pNZ(-7, 7); while (r2 === r1);
+    const s = -(r1 + r2), p = r1 * r2, q = `x^2 ${s < 0 ? '-' : '+'} ${Math.abs(s)}x ${p < 0 ? '-' : '+'} ${Math.abs(p)} = 0`.replace('+ 1x', '+ x').replace('- 1x', '- x');
+    return { question: `Solve $${q}$.`, answer: `Factorise: $(x ${r1 < 0 ? '+' : '-'} ${Math.abs(r1)})(x ${r2 < 0 ? '+' : '-'} ${Math.abs(r2)}) = 0$, so $$x = ${r1} \\text{ or } x = ${r2}$$`, skill: 'Quadratics by factorising' };
+  }
+  let a, b, c, D;
+  do { a = pNZ(1, 4); b = pNZ(-9, 9); c = pNZ(-9, 9); D = b * b - 4 * a * c; } while (D <= 0 || Number.isInteger(Math.sqrt(D)));
+  return { question: `Solve $${pFix(`${a === 1 ? '' : a}x^2 ${b < 0 ? '-' : '+'} ${Math.abs(b)}x ${c < 0 ? '-' : '+'} ${Math.abs(c)} = 0`)}$, giving exact answers.`, answer: `Use the quadratic formula with $a = ${a}$, $b = ${b}$, $c = ${c}$. The discriminant is $${D}$, so $$x = \\frac{${-b} \\pm \\sqrt{${D}}}{${2 * a}}$$`, skill: 'Quadratic formula' };
+}
+async function localPractice() {
+  const out = $('#practiceOut');
+  const level = [1, 2, 0][$('#diff').selectedIndex] ?? 1;
+  prCtl = new AbortController(); setRunBtn('#runPractice', prCtl, 'Make 3 questions');
+  let topic = null;
+  try {
+    if (inkIn(null).length) {
+      const lines = await localRecognize(null, t => out.replaceChildren(statusNode(t)), prCtl.signal);
+      topic = checkLines(lines.map(l => l.latex)).topic;
+    }
+  } catch (e) { if (e && e.code === 'cancelled') { prCtl = null; setRunBtn('#runPractice', null, 'Make 3 questions'); out.innerHTML = ''; return; } }
+  try {
+    const gen = topic === 'Differentiation' ? [pDiff, pDiff, pDiff] : topic === 'Integration' ? [pInt, pInt, pInt] : topic === 'Solving equations' || topic === 'Arithmetic' ? [pSolve, pSolve, pSolve] : [pDiff, pSolve, pInt];
+    pRot = pRand(0, 11);
+    const qs = gen.map(g => g(level));
+    renderPracticeCards(out, qs, topic ? `Based on your page: ${topic.toLowerCase()}.` : 'Nothing to read on this page yet, so here is a mix.');
+  } catch (e) { out.replaceChildren(noticeNode('Lemma could not make questions this time. Try again.')); }
+  finally { prCtl = null; setRunBtn('#runPractice', null, 'Make 3 questions'); }
+}
+function renderPracticeCards(out, qs, lead) {
+  out.innerHTML = '';
+  if (lead) out.append(el('p', { class: 'lede', text: lead }));
+  qs.forEach((q, i) => {
+    const ans = el('div', { class: 'ans', hidden: true }); ans.textContent = String(q.answer || '');
+    const tg = el('button', { class: 'btn small', text: 'Show answer', onclick: () => { ans.hidden = !ans.hidden; tg.textContent = ans.hidden ? 'Show answer' : 'Hide answer'; if (!ans.hidden && !ans.dataset.t) { ans.dataset.t = 1; typeset(ans); } } });
+    const qn = el('div', { class: 'q' }); qn.textContent = String(q.question || '');
+    out.append(el('div', { class: 'qcard' }, el('div', { class: 'qn' }, el('span', { text: 'Question ' + (i + 1) }), el('span', { text: String(q.skill || '') })), qn, el('div', { class: 'btn-row' }, tg), ans));
+  });
+  typeset(out);
+}
+async function localGraphFromPage() {
+  const status = $('#stStatus'), btn = $('#stFromPage');
+  if (!inkIn(visRect()).length) { toast('Write a function or equation on the page first, then try again.'); return; }
+  studio.ctl = new AbortController(); btn.lastChild.textContent = 'Stop';
+  status.hidden = false;
+  try {
+    const lines = await localRecognize(visRect(), t => status.replaceChildren(statusNode(t)), studio.ctl.signal);
+    const found = [];
+    for (const l of lines) {
+      let p = ''; try { p = texToPlain(l.latex); } catch (e) { continue; }
+      for (const seg of p.split(/⇒|∨/)) {
+        const t = seg.trim();
+        if (!t || /⟂|∫|'|__d|ddx/.test(t)) continue;
+        const rel = gSplitRel(gPrep(t));
+        if (rel && /^[a-zA-Z]\([a-z]\)$/.test(rel.lhs.trim())) { found.push(t); continue; }
+        if (/[xyz]/.test(t) && (rel || /x/.test(t))) found.push(t);
+      }
+    }
+    const uniq = [...new Set(found)].slice(0, 8);
+    if (!uniq.length) { status.replaceChildren(noticeNode('Lemma did not find a function or equation to graph on screen. Scroll so it is visible and try again.', 'warn')); return; }
+    const st = studio.st; st.mode = uniq.some(t => /z/.test(t)) ? '3d' : '2d';
+    const list = uniq.map((s, i) => ({ s, c: i % 6, on: true }));
+    if (st.mode === '3d') st.ex3 = list; else st.ex2 = list;
+    studio.trace = null; status.hidden = true; renderStudioList();
+  } catch (e) { const m = readerError(e); status.hidden = !m; if (m) status.replaceChildren(noticeNode(m)); }
+  finally { studio.ctl = null; btn.lastChild.textContent = 'From my working'; }
+}
+async function localAsk(q) {
+  const chat = $('#chat');
+  chat.append(el('div', { class: 'msg me', text: q }));
+  const cap = await captureScreen();
+  let file = null;
+  if (cap) { try { file = new File([cap.blob], 'Lemma page.png', { type: 'image/png' }); } catch (e) {} }
+  const text = q + (file ? '\n\n(The picture is my handwritten working from my Lemma notebook.)' : '');
+  const canShare = !!navigator.share && (!file || (navigator.canShare && (() => { try { return navigator.canShare({ files: [file] }); } catch (e) { return false; } })()));
+  const bubble = el('div', { class: 'msg ai' });
+  bubble.append(el('div', { text: 'Questions go to the Claude app, which uses your Claude plan instead of API credits. Tap Send to Claude, then choose Claude in the share sheet.' }));
+  const row = el('div', { class: 'btn-row', style: 'margin-top:8px' });
+  if (canShare) row.append(el('button', { class: 'btn small primary', text: 'Send to Claude', onclick: () => navigator.share(file ? { files: [file], text } : { text }).catch(() => {}) }));
+  row.append(el('button', { class: 'btn small', text: 'Copy question', onclick: () => { try { navigator.clipboard.writeText(text).then(() => toast('Copied'), () => toast('Copy did not work here')); } catch (e) { toast('Copy did not work here'); } } }));
+  if (file && !canShare) row.append(el('button', { class: 'btn small', text: 'Save page image', onclick: () => offerFile('Lemma page.png', cap.blob) }));
+  bubble.append(row);
+  chat.append(bubble); bubble.scrollIntoView({ block: 'end' });
+}
+function updateAskUI() {
+  const lede = $('[data-pane="ask"] .lede');
+  if (!lede) return;
+  const loc = engine() === 'local';
+  const cl = $('[data-pane="check"] .lede'), tl = $('[data-pane="latex"] .lede'), pl = $('[data-pane="practice"] .lede');
+  if (cl) cl.textContent = loc ? 'Lemma reads the working on screen with its maths reader, checks each line against the one above, and flags the first step that goes wrong. It all runs on this iPad.' : 'Claude reads the working that is on screen, line by line, and flags the first step that goes wrong. Zoom or scroll to choose what gets checked.';
+  if (tl) tl.textContent = loc ? 'Turns the handwriting on this page into LaTeX using the maths reader on this iPad. Nothing is corrected.' : 'Turns the handwriting on this page into LaTeX you can paste into a report or assignment. Nothing is corrected.';
+  if (pl) pl.textContent = loc ? 'New questions on the same topic as this page, with worked answers hidden until you want them. Made on this iPad.' : 'New exam-style questions that test the same skills as this page, with worked answers hidden until you want them.';
+  if (engine() === 'local') { lede.textContent = 'Type a question about the page on screen. Lemma hands it to the Claude app with a picture of your working, so it uses your Claude plan instead of API credits.'; $('#askSend').textContent = 'Next'; }
+  else { lede.textContent = 'Claude sees what is on screen. Ask for a hint, an explanation, or why a step works.'; $('#askSend').textContent = 'Send'; }
 }
 
 $('#btnGraph').onclick = () => openStudio(null);

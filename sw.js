@@ -1,12 +1,13 @@
 // Lemma offline support
-const VERSION = 'lemma-a209050aba';
+const VERSION = 'lemma-601aeef86e';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'math.js', 'tex-svg.js', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 const FONTS = 'lemma-fonts';
+const READER = ['transformers.min.js', 'ort-wasm-simd-threaded.jsep.mjs', 'ort-wasm-simd-threaded.jsep.wasm'];
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE).then(() => Promise.all(READER.map(f => c.add(f).catch(() => {}))))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== FONTS).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('lemma-') && k !== VERSION && k !== FONTS).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
   const req = e.request;
